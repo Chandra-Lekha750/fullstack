@@ -1,146 +1,203 @@
-# uncontrollable
+# URI.js
 
-Wrap a controlled react component, to allow specific prop/handler pairs to be omitted by Component consumers. Uncontrollable allows you to write React components, with minimal state, and then wrap them in a component that will manage state for prop/handlers if they are excluded.
+URI.js is an [RFC 3986](http://www.ietf.org/rfc/rfc3986.txt) compliant, scheme extendable URI parsing/validating/resolving library for all JavaScript environments (browsers, Node.js, etc).
+It is also compliant with the IRI ([RFC 3987](http://www.ietf.org/rfc/rfc3987.txt)), IDNA ([RFC 5890](http://www.ietf.org/rfc/rfc5890.txt)), IPv6 Address ([RFC 5952](http://www.ietf.org/rfc/rfc5952.txt)), IPv6 Zone Identifier ([RFC 6874](http://www.ietf.org/rfc/rfc6874.txt)) specifications.
 
-## Install
+URI.js has an extensive test suite, and works in all (Node.js, web) environments. It weighs in at 6.4kb (gzipped, 17kb deflated).
 
-```sh
-npm i -S uncontrollable
-```
+## API
 
-### Usage
+### Parsing
 
-If you are a bit unsure on the _why_ of this module read the next section first. If you just want to see some real-world examples, check out [React Widgets](https://github.com/jquense/react-widgets) which makes [heavy use of this strategy](https://github.com/jquense/react-widgets/blob/5d1b530cb094cdc72f577fe01abe4a02dd265400/src/Multiselect.jsx#L521).
+	URI.parse("uri://user:pass@example.com:123/one/two.three?q1=a1&q2=a2#body");
+	//returns:
+	//{
+	//  scheme : "uri",
+	//  userinfo : "user:pass",
+	//  host : "example.com",
+	//  port : 123,
+	//  path : "/one/two.three",
+	//  query : "q1=a1&q2=a2",
+	//  fragment : "body"
+	//}
 
-```js
-import { uncontrollable } from 'uncontrollable'
-```
+### Serializing
 
-### API
+	URI.serialize({scheme : "http", host : "example.com", fragment : "footer"}) === "http://example.com/#footer"
 
-#### `uncontrollable(Component, propHandlerHash, [methods])`
+### Resolving
 
-- `Component`: is a valid react component, such as the result of `createClass`
-- `propHandlerHash`: define the pairs of prop/handlers you want to be uncontrollable, e.g. `{ value: 'onChange'}`
-- `methods`: since uncontrollable wraps your component in another component, methods are not immediately accessible. You can proxy them through by providing the names of the methods you want to continue to expose. **You don't need this if you are using React >= v16.3.0, the ref will automatically be forwarded to the uinderlying component**
+	URI.resolve("uri://a/b/c/d?q", "../../g") === "uri://a/g"
 
-For every prop you indicate as uncontrollable, the returned component will also accept an initial, `default` value for that prop. For example, `open` can be left uncontrolled but the initial value can be set via `defaultOpen={true}` if we want it to start open.
+### Normalizing
 
-```js
-import { uncontrollable } from 'uncontrollable'
+	URI.normalize("HTTP://ABC.com:80/%7Esmith/home.html") === "http://abc.com/~smith/home.html"
 
-const UncontrolledCombobox = uncontrollable(Combobox, {
-  value: 'onChange',
-  open: 'onToggle',
-  searchTerm: 'onSearch', //the current typed value (maybe it filters the dropdown list)
-})
-```
+### Comparison
 
-Since uncontrollable creates a new component that wraps your existing one, methods on your underlying component
-won't be immediately accessible. In general this sort of access is not idiomatic React, but it does have its place.
-The third argument of `uncontrollable()` is an optional array of method names you want uncontrollable to "pass through"
-to the original component.
+	URI.equal("example://a/b/c/%7Bfoo%7D", "eXAMPLE://a/./b/../b/%63/%7bfoo%7d") === true
 
-```js
-let UncontrolledForm = uncontrollable(Form, { value: 'onChange' }, ['submit'])
+### IP Support
 
-//when you use a ref this will work
-this.refs.myForm.submit()
-```
+	//IPv4 normalization
+	URI.normalize("//192.068.001.000") === "//192.68.1.0"
 
-#### `useUncontrolled(props, propsHandlerHash) => controlledProps`
+	//IPv6 normalization
+	URI.normalize("//[2001:0:0DB8::0:0001]") === "//[2001:0:db8::1]"
 
-A React hook that can be used in place of the above Higher order Component. It
-returns a complete set of `props` which are safe to spread through to a child element.
+	//IPv6 zone identifier support
+	URI.parse("//[2001:db8::7%25en1]");
+	//returns:
+	//{
+	//  host : "2001:db8::7%en1"
+	//}
 
-```js
-import { useUncontrolled } from 'uncontrollable'
+### IRI Support
 
-const UncontrolledCombobox = props => {
-  // filters out defaultValue, defaultOpen and returns controlled
-  // versions of onChange, and onToggle.
-  const controlledProps = useUncontrolled(props, {
-    value: 'onChange',
-    open: 'onToggle',
-  })
+	//convert IRI to URI
+	URI.serialize(URI.parse("http://examplé.org/rosé")) === "http://xn--exampl-gva.org/ros%C3%A9"
+	//convert URI to IRI
+	URI.serialize(URI.parse("http://xn--exampl-gva.org/ros%C3%A9"), {iri:true}) === "http://examplé.org/rosé"
 
-  return <Checkbox {...controlledProps} />
-}
-```
+### Options
 
-### Use Case
+All of the above functions can accept an additional options argument that is an object that can contain one or more of the following properties:
 
-One of the strengths of React is its extensibility model, enabled by a common practice of pushing component state as high up the tree as possible. While great for enabling extremely flexible and easy to reason about components, this can produce a lot of boilerplate to wire components up with every use. For simple components (like an input) this is usually a matter of tying the input `value` prop to a parent state property via its `onChange` handler. Here is an extremely common pattern:
+*	`scheme` (string)
 
-```jsx
-  render() {
-    return (
-      <input type='text'
-        value={this.state.value}
-        onChange={ e => this.setState({ value: e.target.value })}
-      />
-    )
-  }
-```
+	Indicates the scheme that the URI should be treated as, overriding the URI's normal scheme parsing behavior.
 
-This pattern moves the responsibility of managing the `value` from the input to its parent and mimics "two-way" databinding. Sometimes, however, there is no need for the parent to manage the input's state directly. In that case, all we want to do is set the initial `value` of the input and let the input manage it from then on. React deals with this through "uncontrolled" inputs, where if you don't indicate that you want to control the state of the input externally via a `value` prop it will just do the book-keeping for you.
+*	`reference` (string)
 
-This is a great pattern which we can make use of in our own Components. It is often best to build each component to be as stateless as possible, assuming that the parent will want to control everything that makes sense. Take a simple Dropdown component as an example
+	If set to `"suffix"`, it indicates that the URI is in the suffix format, and the validator will use the option's `scheme` property to determine the URI's scheme.
 
-```js
-class SimpleDropdown extends React.Component {
-  static propTypes = {
-    value: React.PropTypes.string,
-    onChange: React.PropTypes.func,
-    open: React.PropTypes.bool,
-    onToggle: React.PropTypes.func,
-  }
+*	`tolerant` (boolean, false)
 
-  render() {
-    return (
-      <div>
-        <input
-          value={this.props.value}
-          onChange={e => this.props.onChange(e.target.value)}
-        />
-        <button onClick={e => this.props.onToggle(!this.props.open)}>
-          open
-        </button>
-        {this.props.open && (
-          <ul className="open">
-            <li>option 1</li>
-            <li>option 2</li>
-          </ul>
-        )}
-      </div>
-    )
-  }
-}
-```
+	If set to `true`, the parser will relax URI resolving rules.
 
-Notice how we don't track any state in our simple dropdown? This is great because a consumer of our module will have the all the flexibility to decide what the behavior of the dropdown should be. Also notice our public API (propTypes), it consists of common pattern: a property we want set (`value`, `open`), and a set of handlers that indicate _when_ we want them set (`onChange`, `onToggle`). It is up to the parent component to change the `value` and `open` props in response to the handlers.
+*	`absolutePath` (boolean, false)
 
-While this pattern offers an excellent amount of flexibility to consumers, it also requires them to write a bunch of boilerplate code that probably won't change much from use to use. In all likelihood they will always want to set `open` in response to `onToggle`, and only in rare cases will want to override that behavior. This is where the controlled/uncontrolled pattern comes in.
+	If set to `true`, the serializer will not resolve a relative `path` component.
 
-We want to just handle the open/onToggle case ourselves if the consumer doesn't provide a `open` prop (indicating that they want to control it). Rather than complicating our dropdown component with all that logic, obscuring the business logic of our dropdown, we can add it later, by taking our dropdown and wrapping it inside another component that handles that for us.
+*	`iri` (boolean, false)
 
-`uncontrollable` allows you separate out the logic necessary to create controlled/uncontrolled inputs letting you focus on creating a completely controlled input and wrapping it later. This tends to be a lot simpler to reason about as well.
+	If set to `true`, the serializer will unescape non-ASCII characters as per [RFC 3987](http://www.ietf.org/rfc/rfc3987.txt).
 
-```js
-  import { uncontrollable } from 'uncontrollable';
+*	`unicodeSupport` (boolean, false)
 
-  const UncontrollableDropdown = uncontrollable(SimpleDropdown, {
-    value: 'onChange',
-    open: 'onToggle'
-  })
+	If set to `true`, the parser will unescape non-ASCII characters in the parsed output as per [RFC 3987](http://www.ietf.org/rfc/rfc3987.txt).
 
-  <UncontrollableDropdown
-    value={this.state.val} // we can still control these props if we want
-    onChange={val => this.setState({ val })}
-    defaultOpen={true} /> // or just let the UncontrollableDropdown handle it
-                          // and we just set an initial value (or leave it out completely)!
-```
+*	`domainHost` (boolean, false)
 
-Now we don't need to worry about the open onToggle! The returned component will track `open` for us by assuming that it should just set `open` to whatever `onToggle` returns. If we _do_ want to worry about it we can just provide `open` and `onToggle` props and the uncontrolled input will just pass them through.
+	If set to `true`, the library will treat the `host` component as a domain name, and convert IDNs (International Domain Names) as per [RFC 5891](http://www.ietf.org/rfc/rfc5891.txt).
 
-The above is a contrived example but it allows you to wrap even more complex Components, giving you a lot of flexibility in the API you can offer a consumer of your Component. For every pair of prop/handlers you also get a defaultProp of the form "default[PropName]" so `value` -> `defaultValue`, and `open` -> `defaultOpen`, etc. [React Widgets](https://github.com/jquense/react-widgets) makes heavy use of this strategy, you can see it in action here: https://github.com/jquense/react-widgets/blob/5d1b530cb094cdc72f577fe01abe4a02dd265400/src/Multiselect.jsx#L521
+## Scheme Extendable
+
+URI.js supports inserting custom [scheme](http://en.wikipedia.org/wiki/URI_scheme) dependent processing rules. Currently, URI.js has built in support for the following schemes:
+
+*	http \[[RFC 2616](http://www.ietf.org/rfc/rfc2616.txt)\]
+*	https \[[RFC 2818](http://www.ietf.org/rfc/rfc2818.txt)\]
+*	ws \[[RFC 6455](http://www.ietf.org/rfc/rfc6455.txt)\]
+*	wss \[[RFC 6455](http://www.ietf.org/rfc/rfc6455.txt)\]
+*	mailto \[[RFC 6068](http://www.ietf.org/rfc/rfc6068.txt)\]
+*	urn \[[RFC 2141](http://www.ietf.org/rfc/rfc2141.txt)\]
+*	urn:uuid \[[RFC 4122](http://www.ietf.org/rfc/rfc4122.txt)\]
+
+### HTTP/HTTPS Support
+
+	URI.equal("HTTP://ABC.COM:80", "http://abc.com/") === true
+	URI.equal("https://abc.com", "HTTPS://ABC.COM:443/") === true
+
+### WS/WSS Support
+
+	URI.parse("wss://example.com/foo?bar=baz");
+	//returns:
+	//{
+	//	scheme : "wss",
+	//	host: "example.com",
+	//	resourceName: "/foo?bar=baz",
+	//	secure: true,
+	//}
+
+	URI.equal("WS://ABC.COM:80/chat#one", "ws://abc.com/chat") === true
+
+### Mailto Support
+
+	URI.parse("mailto:alpha@example.com,bravo@example.com?subject=SUBSCRIBE&body=Sign%20me%20up!");
+	//returns:
+	//{
+	//	scheme : "mailto",
+	//	to : ["alpha@example.com", "bravo@example.com"],
+	//	subject : "SUBSCRIBE",
+	//	body : "Sign me up!"
+	//}
+
+	URI.serialize({
+		scheme : "mailto",
+		to : ["alpha@example.com"],
+		subject : "REMOVE",
+		body : "Please remove me",
+		headers : {
+			cc : "charlie@example.com"
+		}
+	}) === "mailto:alpha@example.com?cc=charlie@example.com&subject=REMOVE&body=Please%20remove%20me"
+
+### URN Support
+
+	URI.parse("urn:example:foo");
+	//returns:
+	//{
+	//	scheme : "urn",
+	//	nid : "example",
+	//	nss : "foo",
+	//}
+
+#### URN UUID Support
+
+	URI.parse("urn:uuid:f81d4fae-7dec-11d0-a765-00a0c91e6bf6");
+	//returns:
+	//{
+	//	scheme : "urn",
+	//	nid : "uuid",
+	//	uuid : "f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
+	//}
+
+## Usage
+
+To load in a browser, use the following tag:
+
+	<script type="text/javascript" src="uri-js/dist/es5/uri.all.min.js"></script>
+
+To load in a CommonJS/Module environment, first install with npm/yarn by running on the command line:
+
+	npm install uri-js
+	# OR
+	yarn add uri-js
+
+Then, in your code, load it using:
+
+	const URI = require("uri-js");
+
+If you are writing your code in ES6+ (ESNEXT) or TypeScript, you would load it using:
+
+	import * as URI from "uri-js";
+
+Or you can load just what you need using named exports:
+
+	import { parse, serialize, resolve, resolveComponents, normalize, equal, removeDotSegments, pctEncChar, pctDecChars, escapeComponent, unescapeComponent } from "uri-js";
+
+## Breaking changes
+
+### Breaking changes from 3.x
+
+URN parsing has been completely changed to better align with the specification. Scheme is now always `urn`, but has two new properties: `nid` which contains the Namspace Identifier, and `nss` which contains the Namespace Specific String. The `nss` property will be removed by higher order scheme handlers, such as the UUID URN scheme handler.
+
+The UUID of a URN can now be found in the `uuid` property.
+
+### Breaking changes from 2.x
+
+URI validation has been removed as it was slow, exposed a vulnerabilty, and was generally not useful.
+
+### Breaking changes from 1.x
+
+The `errors` array on parsed components is now an `error` string.

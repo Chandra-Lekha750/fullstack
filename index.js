@@ -1,17 +1,17 @@
-"use strict";
-
-var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
-
-var _interopRequireWildcard = require("@babel/runtime/helpers/interopRequireWildcard");
-
-exports.__esModule = true;
-exports.useUncontrolledProp = exports.uncontrollable = exports.useUncontrolled = void 0;
-
-var _hook = _interopRequireWildcard(require("./hook"));
-
-exports.useUncontrolled = _hook.default;
-exports.useUncontrolledProp = _hook.useUncontrolledProp;
-
-var _uncontrollable = _interopRequireDefault(require("./uncontrollable"));
-
-exports.uncontrollable = _uncontrollable.default;
+import { SCHEMES } from "./uri";
+import http from "./schemes/http";
+SCHEMES[http.scheme] = http;
+import https from "./schemes/https";
+SCHEMES[https.scheme] = https;
+import ws from "./schemes/ws";
+SCHEMES[ws.scheme] = ws;
+import wss from "./schemes/wss";
+SCHEMES[wss.scheme] = wss;
+import mailto from "./schemes/mailto";
+SCHEMES[mailto.scheme] = mailto;
+import urn from "./schemes/urn";
+SCHEMES[urn.scheme] = urn;
+import uuid from "./schemes/urn-uuid";
+SCHEMES[uuid.scheme] = uuid;
+export * from "./uri";
+//# sourceMappingURL=index.js.map
