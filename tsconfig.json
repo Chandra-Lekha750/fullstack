@@ -1,8 +1,9 @@
 {
-  "extends": "@4c/tsconfig/web.json",
-  "compilerOptions": {
-    "noImplicitAny": false,
-    "rootDir": "src"
-  },
-  "include": ["src"]
+	"extends": "@ljharb/tsconfig",
+	"compilerOptions": {
+		"target": "es2021",
+	},
+	"exclude": [
+		"coverage",
+	],
 }

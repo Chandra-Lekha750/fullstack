@@ -1,202 +1,336 @@
-// Note: since nyc uses this module to output coverage, any lines
-// that are in the direct sync flow of nyc's outputCoverage are
-// ignored, since we can never get coverage for them.
-// grab a reference to node's real process object right away
-var process = global.process
+/*!
+ * raw-body
+ * Copyright(c) 2013-2014 Jonathan Ong
+ * Copyright(c) 2014-2022 Douglas Christopher Wilson
+ * MIT Licensed
+ */
 
-const processOk = function (process) {
-  return process &&
-    typeof process === 'object' &&
-    typeof process.removeListener === 'function' &&
-    typeof process.emit === 'function' &&
-    typeof process.reallyExit === 'function' &&
-    typeof process.listeners === 'function' &&
-    typeof process.kill === 'function' &&
-    typeof process.pid === 'number' &&
-    typeof process.on === 'function'
+'use strict'
+
+/**
+ * Module dependencies.
+ * @private
+ */
+
+var asyncHooks = tryRequireAsyncHooks()
+var bytes = require('bytes')
+var createError = require('http-errors')
+var iconv = require('iconv-lite')
+var unpipe = require('unpipe')
+
+/**
+ * Module exports.
+ * @public
+ */
+
+module.exports = getRawBody
+
+/**
+ * Module variables.
+ * @private
+ */
+
+var ICONV_ENCODING_MESSAGE_REGEXP = /^Encoding not recognized: /
+
+/**
+ * Get the decoder for a given encoding.
+ *
+ * @param {string} encoding
+ * @private
+ */
+
+function getDecoder (encoding) {
+  if (!encoding) return null
+
+  try {
+    return iconv.getDecoder(encoding)
+  } catch (e) {
+    // error getting decoder
+    if (!ICONV_ENCODING_MESSAGE_REGEXP.test(e.message)) throw e
+
+    // the encoding was not found
+    throw createError(415, 'specified encoding unsupported', {
+      encoding: encoding,
+      type: 'encoding.unsupported'
+    })
+  }
 }
 
-// some kind of non-node environment, just no-op
-/* istanbul ignore if */
-if (!processOk(process)) {
-  module.exports = function () {
-    return function () {}
-  }
-} else {
-  var assert = require('assert')
-  var signals = require('./signals.js')
-  var isWin = /^win/i.test(process.platform)
+/**
+ * Get the raw body of a stream (typically HTTP).
+ *
+ * @param {object} stream
+ * @param {object|string|function} [options]
+ * @param {function} [callback]
+ * @public
+ */
 
-  var EE = require('events')
-  /* istanbul ignore if */
-  if (typeof EE !== 'function') {
-    EE = EE.EventEmitter
-  }
+function getRawBody (stream, options, callback) {
+  var done = callback
+  var opts = options || {}
 
-  var emitter
-  if (process.__signal_exit_emitter__) {
-    emitter = process.__signal_exit_emitter__
-  } else {
-    emitter = process.__signal_exit_emitter__ = new EE()
-    emitter.count = 0
-    emitter.emitted = {}
+  // light validation
+  if (stream === undefined) {
+    throw new TypeError('argument stream is required')
+  } else if (typeof stream !== 'object' || stream === null || typeof stream.on !== 'function') {
+    throw new TypeError('argument stream must be a stream')
   }
 
-  // Because this emitter is a global, we have to check to see if a
-  // previous version of this library failed to enable infinite listeners.
-  // I know what you're about to say.  But literally everything about
-  // signal-exit is a compromise with evil.  Get used to it.
-  if (!emitter.infinite) {
-    emitter.setMaxListeners(Infinity)
-    emitter.infinite = true
+  if (options === true || typeof options === 'string') {
+    // short cut for encoding
+    opts = {
+      encoding: options
+    }
   }
 
-  module.exports = function (cb, opts) {
-    /* istanbul ignore if */
-    if (!processOk(global.process)) {
-      return function () {}
-    }
-    assert.equal(typeof cb, 'function', 'a callback must be provided for exit handler')
-
-    if (loaded === false) {
-      load()
-    }
-
-    var ev = 'exit'
-    if (opts && opts.alwaysLast) {
-      ev = 'afterexit'
-    }
-
-    var remove = function () {
-      emitter.removeListener(ev, cb)
-      if (emitter.listeners('exit').length === 0 &&
-          emitter.listeners('afterexit').length === 0) {
-        unload()
-      }
-    }
-    emitter.on(ev, cb)
-
-    return remove
+  if (typeof options === 'function') {
+    done = options
+    opts = {}
   }
 
-  var unload = function unload () {
-    if (!loaded || !processOk(global.process)) {
-      return
-    }
-    loaded = false
+  // validate callback is a function, if provided
+  if (done !== undefined && typeof done !== 'function') {
+    throw new TypeError('argument callback must be a function')
+  }
 
-    signals.forEach(function (sig) {
-      try {
-        process.removeListener(sig, sigListeners[sig])
-      } catch (er) {}
+  // require the callback without promises
+  if (!done && !global.Promise) {
+    throw new TypeError('argument callback is required')
+  }
+
+  // get encoding
+  var encoding = opts.encoding !== true
+    ? opts.encoding
+    : 'utf-8'
+
+  // convert the limit to an integer
+  var limit = bytes.parse(opts.limit)
+
+  // convert the expected length to an integer
+  var length = opts.length != null && !isNaN(opts.length)
+    ? parseInt(opts.length, 10)
+    : null
+
+  if (done) {
+    // classic callback style
+    return readStream(stream, encoding, length, limit, wrap(done))
+  }
+
+  return new Promise(function executor (resolve, reject) {
+    readStream(stream, encoding, length, limit, function onRead (err, buf) {
+      if (err) return reject(err)
+      resolve(buf)
     })
-    process.emit = originalProcessEmit
-    process.reallyExit = originalProcessReallyExit
-    emitter.count -= 1
-  }
-  module.exports.unload = unload
-
-  var emit = function emit (event, code, signal) {
-    /* istanbul ignore if */
-    if (emitter.emitted[event]) {
-      return
-    }
-    emitter.emitted[event] = true
-    emitter.emit(event, code, signal)
-  }
-
-  // { <signal>: <listener fn>, ... }
-  var sigListeners = {}
-  signals.forEach(function (sig) {
-    sigListeners[sig] = function listener () {
-      /* istanbul ignore if */
-      if (!processOk(global.process)) {
-        return
-      }
-      // If there are no other listeners, an exit is coming!
-      // Simplest way: remove us and then re-send the signal.
-      // We know that this will kill the process, so we can
-      // safely emit now.
-      var listeners = process.listeners(sig)
-      if (listeners.length === emitter.count) {
-        unload()
-        emit('exit', null, sig)
-        /* istanbul ignore next */
-        emit('afterexit', null, sig)
-        /* istanbul ignore next */
-        if (isWin && sig === 'SIGHUP') {
-          // "SIGHUP" throws an `ENOSYS` error on Windows,
-          // so use a supported signal instead
-          sig = 'SIGINT'
-        }
-        /* istanbul ignore next */
-        process.kill(process.pid, sig)
-      }
-    }
   })
+}
 
-  module.exports.signals = function () {
-    return signals
+/**
+ * Halt a stream.
+ *
+ * @param {Object} stream
+ * @private
+ */
+
+function halt (stream) {
+  // unpipe everything from the stream
+  unpipe(stream)
+
+  // pause stream
+  if (typeof stream.pause === 'function') {
+    stream.pause()
+  }
+}
+
+/**
+ * Read the data from the stream.
+ *
+ * @param {object} stream
+ * @param {string} encoding
+ * @param {number} length
+ * @param {number} limit
+ * @param {function} callback
+ * @public
+ */
+
+function readStream (stream, encoding, length, limit, callback) {
+  var complete = false
+  var sync = true
+
+  // check the length and limit options.
+  // note: we intentionally leave the stream paused,
+  // so users should handle the stream themselves.
+  if (limit !== null && length !== null && length > limit) {
+    return done(createError(413, 'request entity too large', {
+      expected: length,
+      length: length,
+      limit: limit,
+      type: 'entity.too.large'
+    }))
   }
 
-  var loaded = false
+  // streams1: assert request encoding is buffer.
+  // streams2+: assert the stream encoding is buffer.
+  //   stream._decoder: streams1
+  //   state.encoding: streams2
+  //   state.decoder: streams2, specifically < 0.10.6
+  var state = stream._readableState
+  if (stream._decoder || (state && (state.encoding || state.decoder))) {
+    // developer error
+    return done(createError(500, 'stream encoding should not be set', {
+      type: 'stream.encoding.set'
+    }))
+  }
 
-  var load = function load () {
-    if (loaded || !processOk(global.process)) {
-      return
+  if (typeof stream.readable !== 'undefined' && !stream.readable) {
+    return done(createError(500, 'stream is not readable', {
+      type: 'stream.not.readable'
+    }))
+  }
+
+  var received = 0
+  var decoder
+
+  try {
+    decoder = getDecoder(encoding)
+  } catch (err) {
+    return done(err)
+  }
+
+  var buffer = decoder
+    ? ''
+    : []
+
+  // attach listeners
+  stream.on('aborted', onAborted)
+  stream.on('close', cleanup)
+  stream.on('data', onData)
+  stream.on('end', onEnd)
+  stream.on('error', onEnd)
+
+  // mark sync section complete
+  sync = false
+
+  function done () {
+    var args = new Array(arguments.length)
+
+    // copy arguments
+    for (var i = 0; i < args.length; i++) {
+      args[i] = arguments[i]
     }
-    loaded = true
 
-    // This is the number of onSignalExit's that are in play.
-    // It's important so that we can count the correct number of
-    // listeners on signals, and don't wait for the other one to
-    // handle it instead of us.
-    emitter.count += 1
+    // mark complete
+    complete = true
 
-    signals = signals.filter(function (sig) {
-      try {
-        process.on(sig, sigListeners[sig])
-        return true
-      } catch (er) {
-        return false
-      }
-    })
-
-    process.emit = processEmit
-    process.reallyExit = processReallyExit
-  }
-  module.exports.load = load
-
-  var originalProcessReallyExit = process.reallyExit
-  var processReallyExit = function processReallyExit (code) {
-    /* istanbul ignore if */
-    if (!processOk(global.process)) {
-      return
-    }
-    process.exitCode = code || /* istanbul ignore next */ 0
-    emit('exit', process.exitCode, null)
-    /* istanbul ignore next */
-    emit('afterexit', process.exitCode, null)
-    /* istanbul ignore next */
-    originalProcessReallyExit.call(process, process.exitCode)
-  }
-
-  var originalProcessEmit = process.emit
-  var processEmit = function processEmit (ev, arg) {
-    if (ev === 'exit' && processOk(global.process)) {
-      /* istanbul ignore else */
-      if (arg !== undefined) {
-        process.exitCode = arg
-      }
-      var ret = originalProcessEmit.apply(this, arguments)
-      /* istanbul ignore next */
-      emit('exit', process.exitCode, null)
-      /* istanbul ignore next */
-      emit('afterexit', process.exitCode, null)
-      /* istanbul ignore next */
-      return ret
+    if (sync) {
+      process.nextTick(invokeCallback)
     } else {
-      return originalProcessEmit.apply(this, arguments)
+      invokeCallback()
+    }
+
+    function invokeCallback () {
+      cleanup()
+
+      if (args[0]) {
+        // halt the stream on error
+        halt(stream)
+      }
+
+      callback.apply(null, args)
     }
   }
+
+  function onAborted () {
+    if (complete) return
+
+    done(createError(400, 'request aborted', {
+      code: 'ECONNABORTED',
+      expected: length,
+      length: length,
+      received: received,
+      type: 'request.aborted'
+    }))
+  }
+
+  function onData (chunk) {
+    if (complete) return
+
+    received += chunk.length
+
+    if (limit !== null && received > limit) {
+      done(createError(413, 'request entity too large', {
+        limit: limit,
+        received: received,
+        type: 'entity.too.large'
+      }))
+    } else if (decoder) {
+      buffer += decoder.write(chunk)
+    } else {
+      buffer.push(chunk)
+    }
+  }
+
+  function onEnd (err) {
+    if (complete) return
+    if (err) return done(err)
+
+    if (length !== null && received !== length) {
+      done(createError(400, 'request size did not match content length', {
+        expected: length,
+        length: length,
+        received: received,
+        type: 'request.size.invalid'
+      }))
+    } else {
+      var string = decoder
+        ? buffer + (decoder.end() || '')
+        : Buffer.concat(buffer)
+      done(null, string)
+    }
+  }
+
+  function cleanup () {
+    buffer = null
+
+    stream.removeListener('aborted', onAborted)
+    stream.removeListener('data', onData)
+    stream.removeListener('end', onEnd)
+    stream.removeListener('error', onEnd)
+    stream.removeListener('close', cleanup)
+  }
+}
+
+/**
+ * Try to require async_hooks
+ * @private
+ */
+
+function tryRequireAsyncHooks () {
+  try {
+    return require('async_hooks')
+  } catch (e) {
+    return {}
+  }
+}
+
+/**
+ * Wrap function with async resource, if possible.
+ * AsyncResource.bind static method backported.
+ * @private
+ */
+
+function wrap (fn) {
+  var res
+
+  // create anonymous resource
+  if (asyncHooks.AsyncResource) {
+    res = new asyncHooks.AsyncResource(fn.name || 'bound-anonymous-fn')
+  }
+
+  // incompatible node.js
+  if (!res || !res.runInAsyncScope) {
+    return fn
+  }
+
+  // return bound function
+  return res.runInAsyncScope.bind(res, fn, null)
 }
