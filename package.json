@@ -1,29 +1,28 @@
 {
-  "name": "wrappy",
-  "version": "1.0.2",
-  "description": "Callback wrapping utility",
-  "main": "wrappy.js",
-  "files": [
-    "wrappy.js"
-  ],
-  "directories": {
-    "test": "test"
-  },
-  "dependencies": {},
-  "devDependencies": {
-    "tap": "^2.3.1"
-  },
-  "scripts": {
-    "test": "tap --coverage test/*.js"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/npm/wrappy"
-  },
   "author": "Isaac Z. Schlueter <i@izs.me> (http://blog.izs.me/)",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/npm/wrappy/issues"
+  "name": "touch",
+  "description": "like touch(1) in node",
+  "version": "3.1.0",
+  "repository": "git://github.com/isaacs/node-touch.git",
+  "bin": {
+    "nodetouch": "./bin/nodetouch.js"
   },
-  "homepage": "https://github.com/npm/wrappy"
+  "dependencies": {
+    "nopt": "~1.0.10"
+  },
+  "license": "ISC",
+  "scripts": {
+    "test": "tap test/*.js --100 -J",
+    "preversion": "npm test",
+    "postversion": "npm publish",
+    "postpublish": "git push origin --all; git push origin --tags"
+  },
+  "devDependencies": {
+    "mutate-fs": "^1.1.0",
+    "tap": "^10.7.0"
+  },
+  "files": [
+    "index.js",
+    "bin/nodetouch.js"
+  ]
 }
