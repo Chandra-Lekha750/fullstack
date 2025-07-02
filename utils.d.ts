@@ -1,12 +1,9 @@
-export declare function uncontrolledPropTypes(controlledValues: any, displayName: string): {};
-export declare function isProp<P>(props: P, prop: keyof P): boolean;
-export declare function defaultKey(key: string): string;
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- */
-export declare function canAcceptRef(component: any): any;
+export declare type Key = string | number;
+export declare type Comparator = (a: any, b: any) => boolean;
+export declare const typeChecker: <TType>(type: any) => (value: any) => value is TType;
+export declare const comparable: (value: any) => any;
+export declare const isArray: (value: any) => value is any[];
+export declare const isObject: (value: any) => value is Object;
+export declare const isFunction: (value: any) => value is Function;
+export declare const isVanillaObject: (value: any) => boolean;
+export declare const equals: (a: any, b: any) => boolean;
