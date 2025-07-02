@@ -1,18 +1,13 @@
-sudo: false
 language: node_js
-cache:
-  directories:
-    - node_modules
-notifications:
-  email: false
 node_js:
-  - '4'
-before_install:
-  - npm i -g npm@^2.0.0
+  - 6
+  - 8
+  - 10
+  - 12
+  - stable
+
 before_script:
-  - npm prune
-after_success:
-  - npm run semantic-release
-branches:
-  except:
-    - "/^v\\d+\\.\\d+\\.\\d+$/"
+  - npm install -g typescript
+  - tsc -p ./
+
+script: "npm run coveralls"

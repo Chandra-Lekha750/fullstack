@@ -1,305 +1,686 @@
-# to-regex-range [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=W8YFZ425KND68) [![NPM version](https://img.shields.io/npm/v/to-regex-range.svg?style=flat)](https://www.npmjs.com/package/to-regex-range) [![NPM monthly downloads](https://img.shields.io/npm/dm/to-regex-range.svg?style=flat)](https://npmjs.org/package/to-regex-range) [![NPM total downloads](https://img.shields.io/npm/dt/to-regex-range.svg?style=flat)](https://npmjs.org/package/to-regex-range) [![Linux Build Status](https://img.shields.io/travis/micromatch/to-regex-range.svg?style=flat&label=Travis)](https://travis-ci.org/micromatch/to-regex-range)
+# socks  [![Build Status](https://travis-ci.org/JoshGlazebrook/socks.svg?branch=master)](https://travis-ci.org/JoshGlazebrook/socks)  [![Coverage Status](https://coveralls.io/repos/github/JoshGlazebrook/socks/badge.svg?branch=master)](https://coveralls.io/github/JoshGlazebrook/socks?branch=v2)
 
-> Pass two numbers, get a regex-compatible source string for matching ranges. Validated against more than 2.78 million test assertions.
+Fully featured SOCKS proxy client supporting SOCKSv4, SOCKSv4a, and SOCKSv5. Includes Bind and Associate functionality.
 
-Please consider following this project's author, [Jon Schlinkert](https://github.com/jonschlinkert), and consider starring the project to show your :heart: and support.
+> Looking for Node.js agent? Check [node-socks-proxy-agent](https://github.com/TooTallNate/node-socks-proxy-agent).
 
-## Install
+### Features
 
-Install with [npm](https://www.npmjs.com/):
+* Supports SOCKS v4, v4a, v5, and v5h protocols.
+* Supports the CONNECT, BIND, and ASSOCIATE commands.
+* Supports callbacks, promises, and events for proxy connection creation async flow control.
+* Supports proxy chaining (CONNECT only).
+* Supports user/password authentication.
+* Supports custom authentication.
+* Built in UDP frame creation & parse functions.
+* Created with TypeScript, type definitions are provided.
 
-```sh
-$ npm install --save to-regex-range
-```
+### Requirements
 
-<details>
-<summary><strong>What does this do?</strong></summary>
+* Node.js v10.0+  (Please use [v1](https://github.com/JoshGlazebrook/socks/tree/82d83923ad960693d8b774cafe17443ded7ed584) for older versions of Node.js)
 
-<br>
+### Looking for v1?
+* Docs for v1 are available [here](https://github.com/JoshGlazebrook/socks/tree/82d83923ad960693d8b774cafe17443ded7ed584)
 
-This libary generates the `source` string to be passed to `new RegExp()` for matching a range of numbers.
+## Installation
 
-**Example**
+`yarn add socks`
 
-```js
-const toRegexRange = require('to-regex-range');
-const regex = new RegExp(toRegexRange('15', '95'));
-```
+or
 
-A string is returned so that you can do whatever you need with it before passing it to `new RegExp()` (like adding `^` or `$` boundaries, defining flags, or combining it another string).
-
-<br>
-
-</details>
-
-<details>
-<summary><strong>Why use this library?</strong></summary>
-
-<br>
-
-### Convenience
-
-Creating regular expressions for matching numbers gets deceptively complicated pretty fast.
-
-For example, let's say you need a validation regex for matching part of a user-id, postal code, social security number, tax id, etc:
-
-* regex for matching `1` => `/1/` (easy enough)
-* regex for matching `1` through `5` => `/[1-5]/` (not bad...)
-* regex for matching `1` or `5` => `/(1|5)/` (still easy...)
-* regex for matching `1` through `50` => `/([1-9]|[1-4][0-9]|50)/` (uh-oh...)
-* regex for matching `1` through `55` => `/([1-9]|[1-4][0-9]|5[0-5])/` (no prob, I can do this...)
-* regex for matching `1` through `555` => `/([1-9]|[1-9][0-9]|[1-4][0-9]{2}|5[0-4][0-9]|55[0-5])/` (maybe not...)
-* regex for matching `0001` through `5555` => `/(0{3}[1-9]|0{2}[1-9][0-9]|0[1-9][0-9]{2}|[1-4][0-9]{3}|5[0-4][0-9]{2}|55[0-4][0-9]|555[0-5])/` (okay, I get the point!)
-
-The numbers are contrived, but they're also really basic. In the real world you might need to generate a regex on-the-fly for validation.
-
-**Learn more**
-
-If you're interested in learning more about [character classes](http://www.regular-expressions.info/charclass.html) and other regex features, I personally have always found [regular-expressions.info](http://www.regular-expressions.info/charclass.html) to be pretty useful.
-
-### Heavily tested
-
-As of April 07, 2019, this library runs [>1m test assertions](./test/test.js) against generated regex-ranges to provide brute-force verification that results are correct.
-
-Tests run in ~280ms on my MacBook Pro, 2.5 GHz Intel Core i7.
-
-### Optimized
-
-Generated regular expressions are optimized:
-
-* duplicate sequences and character classes are reduced using quantifiers
-* smart enough to use `?` conditionals when number(s) or range(s) can be positive or negative
-* uses fragment caching to avoid processing the same exact string more than once
-
-<br>
-
-</details>
+`npm install --save socks`
 
 ## Usage
 
-Add this library to your javascript application with the following line of code
+```typescript
+// TypeScript
+import { SocksClient, SocksClientOptions, SocksClientChainOptions } from 'socks';
 
-```js
-const toRegexRange = require('to-regex-range');
+// ES6 JavaScript
+import { SocksClient } from 'socks';
+
+// Legacy JavaScript
+const SocksClient = require('socks').SocksClient;
 ```
 
-The main export is a function that takes two integers: the `min` value and `max` value (formatted as strings or numbers).
+## Quick Start Example
 
-```js
-const source = toRegexRange('15', '95');
-//=> 1[5-9]|[2-8][0-9]|9[0-5]
+Connect to github.com (192.30.253.113) on port 80, using a SOCKS proxy.
 
-const regex = new RegExp(`^${source}$`);
-console.log(regex.test('14')); //=> false
-console.log(regex.test('50')); //=> true
-console.log(regex.test('94')); //=> true
-console.log(regex.test('96')); //=> false
+```javascript
+const options = {
+  proxy: {
+    host: '159.203.75.200', // ipv4 or ipv6 or hostname
+    port: 1080,
+    type: 5 // Proxy version (4 or 5)
+  },
+
+  command: 'connect', // SOCKS command (createConnection factory function only supports the connect command)
+
+  destination: {
+    host: '192.30.253.113', // github.com (hostname lookups are supported with SOCKS v4a and 5)
+    port: 80
+  }
+};
+
+// Async/Await
+try {
+  const info = await SocksClient.createConnection(options);
+
+  console.log(info.socket);
+  // <Socket ...>  (this is a raw net.Socket that is established to the destination host through the given proxy server)
+} catch (err) {
+  // Handle errors
+}
+
+// Promises
+SocksClient.createConnection(options)
+.then(info => {
+  console.log(info.socket);
+  // <Socket ...>  (this is a raw net.Socket that is established to the destination host through the given proxy server)
+})
+.catch(err => {
+  // Handle errors
+});
+
+// Callbacks
+SocksClient.createConnection(options, (err, info) => {
+  if (!err) {
+    console.log(info.socket);
+    // <Socket ...>  (this is a raw net.Socket that is established to the destination host through the given proxy server)
+  } else {
+    // Handle errors
+  }
+});
 ```
 
-## Options
+## Chaining Proxies
 
-### options.capture
+**Note:** Chaining is only supported when using the SOCKS connect command, and chaining can only be done through the special factory chaining function.
 
-**Type**: `boolean`
+This example makes a proxy chain through two SOCKS proxies to ip-api.com. Once the connection to the destination is established it sends an HTTP request to get a JSON response that returns ip info for the requesting ip.
 
-**Deafault**: `undefined`
+```javascript
+const options = {
+  destination: {
+    host: 'ip-api.com', // host names are supported with SOCKS v4a and SOCKS v5.
+    port: 80
+  },
+  command: 'connect', // Only the connect command is supported when chaining proxies.
+  proxies: [ // The chain order is the order in the proxies array, meaning the last proxy will establish a connection to the destination.
+    {
+      host: '159.203.75.235', // ipv4, ipv6, or hostname
+      port: 1081,
+      type: 5
+    },
+    {
+      host: '104.131.124.203', // ipv4, ipv6, or hostname
+      port: 1081,
+      type: 5
+    }
+  ]
+}
 
-Wrap the returned value in parentheses when there is more than one regex condition. Useful when you're dynamically generating ranges.
+// Async/Await
+try {
+  const info = await SocksClient.createConnectionChain(options);
 
-```js
-console.log(toRegexRange('-10', '10'));
-//=> -[1-9]|-?10|[0-9]
+  console.log(info.socket);
+  // <Socket ...>  (this is a raw net.Socket that is established to the destination host through the given proxy servers)
 
-console.log(toRegexRange('-10', '10', { capture: true }));
-//=> (-[1-9]|-?10|[0-9])
+  console.log(info.socket.remoteAddress) // The remote address of the returned socket is the first proxy in the chain.
+  // 159.203.75.235
+
+  info.socket.write('GET /json HTTP/1.1\nHost: ip-api.com\n\n');
+  info.socket.on('data', (data) => {
+    console.log(data.toString()); // ip-api.com sees that the last proxy in the chain (104.131.124.203) is connected to it.
+    /*
+      HTTP/1.1 200 OK
+      Access-Control-Allow-Origin: *
+      Content-Type: application/json; charset=utf-8
+      Date: Sun, 24 Dec 2017 03:47:51 GMT
+      Content-Length: 300
+
+      {
+        "as":"AS14061 Digital Ocean, Inc.",
+        "city":"Clifton",
+        "country":"United States",
+        "countryCode":"US",
+        "isp":"Digital Ocean",
+        "lat":40.8326,
+        "lon":-74.1307,
+        "org":"Digital Ocean",
+        "query":"104.131.124.203",
+        "region":"NJ",
+        "regionName":"New Jersey",
+        "status":"success",
+        "timezone":"America/New_York",
+        "zip":"07014"
+      }
+    */
+  });
+} catch (err) {
+  // Handle errors
+}
+
+// Promises
+SocksClient.createConnectionChain(options)
+.then(info => {
+  console.log(info.socket);
+  // <Socket ...>  (this is a raw net.Socket that is established to the destination host through the given proxy server)
+
+  console.log(info.socket.remoteAddress) // The remote address of the returned socket is the first proxy in the chain.
+  // 159.203.75.235
+
+  info.socket.write('GET /json HTTP/1.1\nHost: ip-api.com\n\n');
+  info.socket.on('data', (data) => {
+    console.log(data.toString()); // ip-api.com sees that the last proxy in the chain (104.131.124.203) is connected to it.
+    /*
+      HTTP/1.1 200 OK
+      Access-Control-Allow-Origin: *
+      Content-Type: application/json; charset=utf-8
+      Date: Sun, 24 Dec 2017 03:47:51 GMT
+      Content-Length: 300
+
+      {
+        "as":"AS14061 Digital Ocean, Inc.",
+        "city":"Clifton",
+        "country":"United States",
+        "countryCode":"US",
+        "isp":"Digital Ocean",
+        "lat":40.8326,
+        "lon":-74.1307,
+        "org":"Digital Ocean",
+        "query":"104.131.124.203",
+        "region":"NJ",
+        "regionName":"New Jersey",
+        "status":"success",
+        "timezone":"America/New_York",
+        "zip":"07014"
+      }
+    */
+  });
+})
+.catch(err => {
+  // Handle errors
+});
+
+// Callbacks
+SocksClient.createConnectionChain(options, (err, info) => {
+  if (!err) {
+    console.log(info.socket);
+    // <Socket ...>  (this is a raw net.Socket that is established to the destination host through the given proxy server)
+
+    console.log(info.socket.remoteAddress) // The remote address of the returned socket is the first proxy in the chain.
+  // 159.203.75.235
+
+  info.socket.write('GET /json HTTP/1.1\nHost: ip-api.com\n\n');
+  info.socket.on('data', (data) => {
+    console.log(data.toString()); // ip-api.com sees that the last proxy in the chain (104.131.124.203) is connected to it.
+    /*
+      HTTP/1.1 200 OK
+      Access-Control-Allow-Origin: *
+      Content-Type: application/json; charset=utf-8
+      Date: Sun, 24 Dec 2017 03:47:51 GMT
+      Content-Length: 300
+
+      {
+        "as":"AS14061 Digital Ocean, Inc.",
+        "city":"Clifton",
+        "country":"United States",
+        "countryCode":"US",
+        "isp":"Digital Ocean",
+        "lat":40.8326,
+        "lon":-74.1307,
+        "org":"Digital Ocean",
+        "query":"104.131.124.203",
+        "region":"NJ",
+        "regionName":"New Jersey",
+        "status":"success",
+        "timezone":"America/New_York",
+        "zip":"07014"
+      }
+    */
+  });
+  } else {
+    // Handle errors
+  }
+});
 ```
 
-### options.shorthand
+## Bind Example (TCP Relay)
 
-**Type**: `boolean`
+When the bind command is sent to a SOCKS v4/v5 proxy server, the proxy server starts listening on a new TCP port and the proxy relays then remote host information back to the client. When another remote client connects to the proxy server on this port the SOCKS proxy sends a notification that an incoming connection has been accepted to the initial client and a full duplex stream is now established to the initial client and the client that connected to that special port.
 
-**Deafault**: `undefined`
+```javascript
+const options = {
+  proxy: {
+    host: '159.203.75.235', // ipv4, ipv6, or hostname
+    port: 1081,
+    type: 5
+  },
 
-Use the regex shorthand for `[0-9]`:
+  command: 'bind',
 
-```js
-console.log(toRegexRange('0', '999999'));
-//=> [0-9]|[1-9][0-9]{1,5}
+  // When using BIND, the destination should be the remote client that is expected to connect to the SOCKS proxy. Using 0.0.0.0 makes the Proxy accept any incoming connection on that port.
+  destination: {
+    host: '0.0.0.0',
+    port: 0
+  }
+};
 
-console.log(toRegexRange('0', '999999', { shorthand: true }));
-//=> \d|[1-9]\d{1,5}
+// Creates a new SocksClient instance.
+const client = new SocksClient(options);
+
+// When the SOCKS proxy has bound a new port and started listening, this event is fired.
+client.on('bound', info => {
+  console.log(info.remoteHost);
+  /*
+  {
+    host: "159.203.75.235",
+    port: 57362
+  }
+  */
+});
+
+// When a client connects to the newly bound port on the SOCKS proxy, this event is fired.
+client.on('established', info => {
+  // info.remoteHost is the remote address of the client that connected to the SOCKS proxy.
+  console.log(info.remoteHost);
+  /*
+    host: 67.171.34.23,
+    port: 49823
+  */
+
+  console.log(info.socket);
+  // <Socket ...>  (This is a raw net.Socket that is a connection between the initial client and the remote client that connected to the proxy)
+
+  // Handle received data...
+  info.socket.on('data', data => {
+    console.log('recv', data);
+  });
+});
+
+// An error occurred trying to establish this SOCKS connection.
+client.on('error', err => {
+  console.error(err);
+});
+
+// Start connection to proxy
+client.connect();
 ```
 
-### options.relaxZeros
+## Associate Example (UDP Relay)
 
-**Type**: `boolean`
+When the associate command is sent to a SOCKS v5 proxy server, it sets up a UDP relay that allows the client to send UDP packets to a remote host through the proxy server, and also receive UDP packet responses back through the proxy server.
 
-**Default**: `true`
+```javascript
+const options = {
+  proxy: {
+    host: '159.203.75.235', // ipv4, ipv6, or hostname
+    port: 1081,
+    type: 5
+  },
 
-This option relaxes matching for leading zeros when when ranges are zero-padded.
+  command: 'associate',
 
-```js
-const source = toRegexRange('-0010', '0010');
-const regex = new RegExp(`^${source}$`);
-console.log(regex.test('-10')); //=> true
-console.log(regex.test('-010')); //=> true
-console.log(regex.test('-0010')); //=> true
-console.log(regex.test('10')); //=> true
-console.log(regex.test('010')); //=> true
-console.log(regex.test('0010')); //=> true
+  // When using associate, the destination should be the remote client that is expected to send UDP packets to the proxy server to be forwarded. This should be your local ip, or optionally the wildcard address (0.0.0.0)  UDP Client <-> Proxy <-> UDP Client
+  destination: {
+    host: '0.0.0.0',
+    port: 0
+  }
+};
+
+// Create a local UDP socket for sending packets to the proxy.
+const udpSocket = dgram.createSocket('udp4');
+udpSocket.bind();
+
+// Listen for incoming UDP packets from the proxy server.
+udpSocket.on('message', (message, rinfo) => {
+  console.log(SocksClient.parseUDPFrame(message));
+  /*
+  { frameNumber: 0,
+    remoteHost: { host: '165.227.108.231', port: 4444 }, // The remote host that replied with a UDP packet
+    data: <Buffer 74 65 73 74 0a> // The data
+  }
+  */
+});
+
+let client = new SocksClient(associateOptions);
+
+// When the UDP relay is established, this event is fired and includes the UDP relay port to send data to on the proxy server.
+client.on('established', info => {
+  console.log(info.remoteHost);
+  /*
+    {
+      host: '159.203.75.235',
+      port: 44711
+    }
+  */
+
+  // Send 'hello' to 165.227.108.231:4444
+  const packet = SocksClient.createUDPFrame({
+    remoteHost: { host: '165.227.108.231', port: 4444 },
+    data: Buffer.from(line)
+  });
+  udpSocket.send(packet, info.remoteHost.port, info.remoteHost.host);
+});
+
+// Start connection
+client.connect();
 ```
 
-When `relaxZeros` is false, matching is strict:
+**Note:** The associate TCP connection to the proxy must remain open for the UDP relay to work.
 
-```js
-const source = toRegexRange('-0010', '0010', { relaxZeros: false });
-const regex = new RegExp(`^${source}$`);
-console.log(regex.test('-10')); //=> false
-console.log(regex.test('-010')); //=> false
-console.log(regex.test('-0010')); //=> true
-console.log(regex.test('10')); //=> false
-console.log(regex.test('010')); //=> false
-console.log(regex.test('0010')); //=> true
+## Additional Examples
+
+[Documentation](docs/index.md)
+
+
+## Migrating from v1
+
+Looking for a guide to migrate from v1? Look [here](docs/migratingFromV1.md)
+
+## Api Reference:
+
+**Note:** socks includes full TypeScript definitions. These can even be used without using TypeScript as most IDEs (such as VS Code) will use these type definition files for auto completion intellisense even in JavaScript files.
+
+* Class: SocksClient
+  * [new SocksClient(options[, callback])](#new-socksclientoptions)
+  * [Class Method: SocksClient.createConnection(options[, callback])](#class-method-socksclientcreateconnectionoptions-callback)
+  * [Class Method: SocksClient.createConnectionChain(options[, callback])](#class-method-socksclientcreateconnectionchainoptions-callback)
+  * [Class Method: SocksClient.createUDPFrame(options)](#class-method-socksclientcreateudpframedetails)
+  * [Class Method: SocksClient.parseUDPFrame(data)](#class-method-socksclientparseudpframedata)
+  * [Event: 'error'](#event-error)
+  * [Event: 'bound'](#event-bound)
+  * [Event: 'established'](#event-established)
+  * [client.connect()](#clientconnect)
+  * [client.socksClientOptions](#clientconnect)
+
+### SocksClient
+
+SocksClient establishes SOCKS proxy connections to remote destination hosts. These proxy connections are fully transparent to the server and once established act as full duplex streams. SOCKS v4, v4a, v5, and v5h are supported, as well as the connect, bind, and associate commands.
+
+SocksClient supports creating connections using callbacks, promises, and async/await flow control using two static factory functions createConnection and createConnectionChain. It also internally extends EventEmitter which results in allowing event handling based async flow control.
+
+**SOCKS Compatibility Table**
+
+Note: When using 4a please specify type: 4, and when using 5h please specify type 5.
+
+| Socks Version | TCP | UDP | IPv4 | IPv6 | Hostname |
+| --- | :---: | :---: | :---: | :---: | :---: |
+| SOCKS v4 | ✅ | ❌ | ✅ | ❌ | ❌ |
+| SOCKS v4a | ✅ | ❌ | ✅ | ❌ | ✅ |
+| SOCKS v5 (includes v5h) | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+### new SocksClient(options)
+
+* ```options``` {SocksClientOptions} - An object describing the SOCKS proxy to use, the command to send and establish, and the destination host to connect to.
+
+### SocksClientOptions
+
+```typescript
+{
+  proxy: {
+    host: '159.203.75.200', // ipv4, ipv6, or hostname
+    port: 1080,
+    type: 5, // Proxy version (4 or 5). For v4a use 4, for v5h use 5.
+
+    // Optional fields
+    userId: 'some username', // Used for SOCKS4 userId auth, and SOCKS5 user/pass auth in conjunction with password.
+    password: 'some password', // Used in conjunction with userId for user/pass auth for SOCKS5 proxies.
+    custom_auth_method: 0x80,  // If using a custom auth method, specify the type here. If this is set, ALL other custom_auth_*** options must be set as well.
+    custom_auth_request_handler: async () =>. {
+      // This will be called when it's time to send the custom auth handshake. You must return a Buffer containing the data to send as your authentication.
+      return Buffer.from([0x01,0x02,0x03]);
+    },
+    // This is the expected size (bytes) of the custom auth response from the proxy server.
+    custom_auth_response_size: 2,
+    // This is called when the auth response is received. The received packet is passed in as a Buffer, and you must return a boolean indicating the response from the server said your custom auth was successful or failed.
+    custom_auth_response_handler: async (data) => {
+      return data[1] === 0x00;
+    }
+  },
+
+  command: 'connect', // connect, bind, associate
+
+  destination: {
+    host: '192.30.253.113', // ipv4, ipv6, hostname. Hostnames work with v4a and v5.
+    port: 80
+  },
+
+  // Optional fields
+  timeout: 30000, // How long to wait to establish a proxy connection. (defaults to 30 seconds)
+
+  set_tcp_nodelay: true // If true, will turn on the underlying sockets TCP_NODELAY option.
+}
 ```
 
-## Examples
+### Class Method: SocksClient.createConnection(options[, callback])
+* ```options``` { SocksClientOptions } - An object describing the SOCKS proxy to use, the command to send and establish, and the destination host to connect to.
+* ```callback``` { Function } - Optional callback function that is called when the proxy connection is established, or an error occurs.
+* ```returns``` { Promise } - A Promise is returned that is resolved when the proxy connection is established, or rejected when an error occurs.
 
-| **Range**                   | **Result**                                                                      | **Compile time** |
-| ---                         | ---                                                                             | ---              |
-| `toRegexRange(-10, 10)`     | `-[1-9]\|-?10\|[0-9]`                                                           | _132μs_          |
-| `toRegexRange(-100, -10)`   | `-1[0-9]\|-[2-9][0-9]\|-100`                                                    | _50μs_           |
-| `toRegexRange(-100, 100)`   | `-[1-9]\|-?[1-9][0-9]\|-?100\|[0-9]`                                            | _42μs_           |
-| `toRegexRange(001, 100)`    | `0{0,2}[1-9]\|0?[1-9][0-9]\|100`                                                | _109μs_          |
-| `toRegexRange(001, 555)`    | `0{0,2}[1-9]\|0?[1-9][0-9]\|[1-4][0-9]{2}\|5[0-4][0-9]\|55[0-5]`                | _51μs_           |
-| `toRegexRange(0010, 1000)`  | `0{0,2}1[0-9]\|0{0,2}[2-9][0-9]\|0?[1-9][0-9]{2}\|1000`                         | _31μs_           |
-| `toRegexRange(1, 50)`       | `[1-9]\|[1-4][0-9]\|50`                                                         | _24μs_           |
-| `toRegexRange(1, 55)`       | `[1-9]\|[1-4][0-9]\|5[0-5]`                                                     | _23μs_           |
-| `toRegexRange(1, 555)`      | `[1-9]\|[1-9][0-9]\|[1-4][0-9]{2}\|5[0-4][0-9]\|55[0-5]`                        | _30μs_           |
-| `toRegexRange(1, 5555)`     | `[1-9]\|[1-9][0-9]{1,2}\|[1-4][0-9]{3}\|5[0-4][0-9]{2}\|55[0-4][0-9]\|555[0-5]` | _43μs_           |
-| `toRegexRange(111, 555)`    | `11[1-9]\|1[2-9][0-9]\|[2-4][0-9]{2}\|5[0-4][0-9]\|55[0-5]`                     | _38μs_           |
-| `toRegexRange(29, 51)`      | `29\|[34][0-9]\|5[01]`                                                          | _24μs_           |
-| `toRegexRange(31, 877)`     | `3[1-9]\|[4-9][0-9]\|[1-7][0-9]{2}\|8[0-6][0-9]\|87[0-7]`                       | _32μs_           |
-| `toRegexRange(5, 5)`        | `5`                                                                             | _8μs_            |
-| `toRegexRange(5, 6)`        | `5\|6`                                                                          | _11μs_           |
-| `toRegexRange(1, 2)`        | `1\|2`                                                                          | _6μs_            |
-| `toRegexRange(1, 5)`        | `[1-5]`                                                                         | _15μs_           |
-| `toRegexRange(1, 10)`       | `[1-9]\|10`                                                                     | _22μs_           |
-| `toRegexRange(1, 100)`      | `[1-9]\|[1-9][0-9]\|100`                                                        | _25μs_           |
-| `toRegexRange(1, 1000)`     | `[1-9]\|[1-9][0-9]{1,2}\|1000`                                                  | _31μs_           |
-| `toRegexRange(1, 10000)`    | `[1-9]\|[1-9][0-9]{1,3}\|10000`                                                 | _34μs_           |
-| `toRegexRange(1, 100000)`   | `[1-9]\|[1-9][0-9]{1,4}\|100000`                                                | _36μs_           |
-| `toRegexRange(1, 1000000)`  | `[1-9]\|[1-9][0-9]{1,5}\|1000000`                                               | _42μs_           |
-| `toRegexRange(1, 10000000)` | `[1-9]\|[1-9][0-9]{1,6}\|10000000`                                              | _42μs_           |
+Creates a new proxy connection through the given proxy to the given destination host. This factory function supports callbacks and promises for async flow control.
 
-## Heads up!
+**Note:** If a callback function is provided, the promise will always resolve regardless of an error occurring. Please be sure to exclusively use either promises or callbacks when using this factory function.
 
-**Order of arguments**
+```typescript
+const options = {
+  proxy: {
+    host: '159.203.75.200', // ipv4, ipv6, or hostname
+    port: 1080,
+    type: 5 // Proxy version (4 or 5)
+  },
 
-When the `min` is larger than the `max`, values will be flipped to create a valid range:
+  command: 'connect', // connect, bind, associate
 
-```js
-toRegexRange('51', '29');
+  destination: {
+    host: '192.30.253.113', // ipv4, ipv6, or hostname
+    port: 80
+  }
+}
+
+// Await/Async (uses a Promise)
+try {
+  const info = await SocksClient.createConnection(options);
+  console.log(info);
+  /*
+  {
+    socket: <Socket ...>,  // Raw net.Socket
+  }
+  */
+  / <Socket ...>  (this is a raw net.Socket that is established to the destination host through the given proxy server)
+
+} catch (err) {
+  // Handle error...
+}
+
+// Promise
+SocksClient.createConnection(options)
+.then(info => {
+  console.log(info);
+  /*
+  {
+    socket: <Socket ...>,  // Raw net.Socket
+  }
+  */
+})
+.catch(err => {
+  // Handle error...
+});
+
+// Callback
+SocksClient.createConnection(options, (err, info) => {
+  if (!err) {
+    console.log(info);
+  /*
+  {
+    socket: <Socket ...>,  // Raw net.Socket
+  }
+  */
+  } else {
+    // Handle error...
+  }
+});
 ```
 
-Is effectively flipped to:
+### Class Method: SocksClient.createConnectionChain(options[, callback])
+* ```options``` { SocksClientChainOptions } - An object describing a list of SOCKS proxies to use, the command to send and establish, and the destination host to connect to.
+* ```callback``` { Function } - Optional callback function that is called when the proxy connection chain is established, or an error occurs.
+* ```returns``` { Promise } - A Promise is returned that is resolved when the proxy connection chain is established, or rejected when an error occurs.
 
-```js
-toRegexRange('29', '51');
-//=> 29|[3-4][0-9]|5[0-1]
+Creates a new proxy connection chain through a list of at least two SOCKS proxies to the given destination host. This factory method supports callbacks and promises for async flow control.
+
+**Note:** If a callback function is provided, the promise will always resolve regardless of an error occurring. Please be sure to exclusively use either promises or callbacks when using this factory function.
+
+**Note:** At least two proxies must be provided for the chain to be established.
+
+```typescript
+const options = {
+  proxies: [ // The chain order is the order in the proxies array, meaning the last proxy will establish a connection to the destination.
+    {
+      host: '159.203.75.235', // ipv4, ipv6, or hostname
+      port: 1081,
+      type: 5
+    },
+    {
+      host: '104.131.124.203', // ipv4, ipv6, or hostname
+      port: 1081,
+      type: 5
+    }
+  ]
+
+  command: 'connect', // Only connect is supported in chaining mode.
+
+  destination: {
+    host: '192.30.253.113', // ipv4, ipv6, hostname
+    port: 80
+  }
+}
 ```
 
-**Steps / increments**
+### Class Method: SocksClient.createUDPFrame(details)
+* ```details``` { SocksUDPFrameDetails } - An object containing the remote host, frame number, and frame data to use when creating a SOCKS UDP frame packet.
+* ```returns``` { Buffer } - A Buffer containing all of the UDP frame data.
 
-This library does not support steps (increments). A pr to add support would be welcome.
+Creates a SOCKS UDP frame relay packet that is sent and received via a SOCKS proxy when using the associate command for UDP packet forwarding.
 
-## History
+**SocksUDPFrameDetails**
 
-### v2.0.0 - 2017-04-21
+```typescript
+{
+  frameNumber: 0, // The frame number (used for breaking up larger packets)
 
-**New features**
+  remoteHost: { // The remote host to have the proxy send data to, or the remote host that send this data.
+    host: '1.2.3.4',
+    port: 1234
+  },
 
-Adds support for zero-padding!
+  data: <Buffer 01 02 03 04...> // A Buffer instance of data to include in the packet (actual data sent to the remote host)
+}
+interface SocksUDPFrameDetails {
+  // The frame number of the packet.
+  frameNumber?: number;
 
-### v1.0.0
+  // The remote host.
+  remoteHost: SocksRemoteHost;
 
-**Optimizations**
-
-Repeating ranges are now grouped using quantifiers. rocessing time is roughly the same, but the generated regex is much smaller, which should result in faster matching.
-
-## Attribution
-
-Inspired by the python library [range-regex](https://github.com/dimka665/range-regex).
-
-## About
-
-<details>
-<summary><strong>Contributing</strong></summary>
-
-Pull requests and stars are always welcome. For bugs and feature requests, [please create an issue](../../issues/new).
-
-</details>
-
-<details>
-<summary><strong>Running Tests</strong></summary>
-
-Running and reviewing unit tests is a great way to get familiarized with a library and its API. You can install dependencies and run tests with the following command:
-
-```sh
-$ npm install && npm test
+  // The packet data.
+  data: Buffer;
+}
 ```
 
-</details>
+### Class Method: SocksClient.parseUDPFrame(data)
+* ```data``` { Buffer } - A Buffer instance containing SOCKS UDP frame data to parse.
+* ```returns``` { SocksUDPFrameDetails } - An object containing the remote host, frame number, and frame data of the SOCKS UDP frame.
 
-<details>
-<summary><strong>Building docs</strong></summary>
-
-_(This project's readme.md is generated by [verb](https://github.com/verbose/verb-generate-readme), please don't edit the readme directly. Any changes to the readme must be made in the [.verb.md](.verb.md) readme template.)_
-
-To generate the readme, run the following command:
-
-```sh
-$ npm install -g verbose/verb#dev verb-generate-readme && verb
+```typescript
+const frame = SocksClient.parseUDPFrame(data);
+console.log(frame);
+/*
+{
+  frameNumber: 0,
+  remoteHost: {
+    host: '1.2.3.4',
+    port: 1234
+  },
+  data: <Buffer 01 02 03 04 ...>
+}
+*/
 ```
 
-</details>
+Parses a Buffer instance and returns the parsed SocksUDPFrameDetails object.
 
-### Related projects
+## Event: 'error'
+* ```err``` { SocksClientError } - An Error object containing an error message and the original SocksClientOptions.
 
-You might also be interested in these projects:
+This event is emitted if an error occurs when trying to establish the proxy connection.
 
-* [expand-range](https://www.npmjs.com/package/expand-range): Fast, bash-like range expansion. Expand a range of numbers or letters, uppercase or lowercase. Used… [more](https://github.com/jonschlinkert/expand-range) | [homepage](https://github.com/jonschlinkert/expand-range "Fast, bash-like range expansion. Expand a range of numbers or letters, uppercase or lowercase. Used by micromatch.")
-* [fill-range](https://www.npmjs.com/package/fill-range): Fill in a range of numbers or letters, optionally passing an increment or `step` to… [more](https://github.com/jonschlinkert/fill-range) | [homepage](https://github.com/jonschlinkert/fill-range "Fill in a range of numbers or letters, optionally passing an increment or `step` to use, or create a regex-compatible range with `options.toRegex`")
-* [micromatch](https://www.npmjs.com/package/micromatch): Glob matching for javascript/node.js. A drop-in replacement and faster alternative to minimatch and multimatch. | [homepage](https://github.com/micromatch/micromatch "Glob matching for javascript/node.js. A drop-in replacement and faster alternative to minimatch and multimatch.")
-* [repeat-element](https://www.npmjs.com/package/repeat-element): Create an array by repeating the given value n times. | [homepage](https://github.com/jonschlinkert/repeat-element "Create an array by repeating the given value n times.")
-* [repeat-string](https://www.npmjs.com/package/repeat-string): Repeat the given string n times. Fastest implementation for repeating a string. | [homepage](https://github.com/jonschlinkert/repeat-string "Repeat the given string n times. Fastest implementation for repeating a string.")
+## Event: 'bound'
+* ```info``` { SocksClientBoundEvent } An object containing a Socket and SocksRemoteHost info.
 
-### Contributors
+This event is emitted when using the BIND command on a remote SOCKS proxy server. This event indicates the proxy server is now listening for incoming connections on a specified port.
 
-| **Commits** | **Contributor** |  
-| --- | --- |  
-| 63 | [jonschlinkert](https://github.com/jonschlinkert) |  
-| 3  | [doowb](https://github.com/doowb) |  
-| 2  | [realityking](https://github.com/realityking) |  
+**SocksClientBoundEvent**
+```typescript
+{
+  socket: net.Socket, // The underlying raw Socket
+  remoteHost: {
+    host: '1.2.3.4', // The remote host that is listening (usually the proxy itself)
+    port: 4444 // The remote port the proxy is listening on for incoming connections (when using BIND).
+  }
+}
+```
 
-### Author
+## Event: 'established'
+* ```info``` { SocksClientEstablishedEvent } An object containing a Socket and SocksRemoteHost info.
 
-**Jon Schlinkert**
+This event is emitted when the following conditions are met:
+1. When using the CONNECT command, and a proxy connection has been established to the remote host.
+2. When using the BIND command, and an incoming connection has been accepted by the proxy and a TCP relay has been established.
+3. When using the ASSOCIATE command, and a UDP relay has been established.
 
-* [GitHub Profile](https://github.com/jonschlinkert)
-* [Twitter Profile](https://twitter.com/jonschlinkert)
-* [LinkedIn Profile](https://linkedin.com/in/jonschlinkert)
+When using BIND, 'bound' is first emitted to indicate the SOCKS server is waiting for an incoming connection, and provides the remote port the SOCKS server is listening on.
 
-Please consider supporting me on Patreon, or [start your own Patreon page](https://patreon.com/invite/bxpbvm)!
+When using ASSOCIATE, 'established' is emitted with the remote UDP port the SOCKS server is accepting UDP frame packets on.
 
-<a href="https://www.patreon.com/jonschlinkert">
-<img src="https://c5.patreon.com/external/logo/become_a_patron_button@2x.png" height="50">
-</a>
+**SocksClientEstablishedEvent**
+```typescript
+{
+  socket: net.Socket, // The underlying raw Socket
+  remoteHost: {
+    host: '1.2.3.4', // The remote host that is listening (usually the proxy itself)
+    port: 52738 // The remote port the proxy is listening on for incoming connections (when using BIND).
+  }
+}
+```
 
-### License
+## client.connect()
 
-Copyright © 2019, [Jon Schlinkert](https://github.com/jonschlinkert).
-Released under the [MIT License](LICENSE).
+Starts connecting to the remote SOCKS proxy server to establish a proxy connection to the destination host.
 
-***
+## client.socksClientOptions
+* ```returns``` { SocksClientOptions } The options that were passed to the SocksClient.
 
-_This file was generated by [verb-generate-readme](https://github.com/verbose/verb-generate-readme), v0.8.0, on April 07, 2019._
+Gets the options that were passed to the SocksClient when it was created.
+
+
+**SocksClientError**
+```typescript
+{ // Subclassed from Error.
+  message: 'An error has occurred',
+  options: {
+    // SocksClientOptions
+  }
+}
+```
+
+# Further Reading:
+
+Please read the SOCKS 5 specifications for more information on how to use BIND and Associate.
+http://www.ietf.org/rfc/rfc1928.txt
+
+# License
+
+This work is licensed under the [MIT license](http://en.wikipedia.org/wiki/MIT_License).
